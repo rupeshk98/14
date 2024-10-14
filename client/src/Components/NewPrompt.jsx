@@ -5,7 +5,7 @@ import model from "../lib/gemini";
 import Markdown from "react-markdown";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
- const NewPrompt = ({ data }) => {
+const NewPrompt = ({ data }) => {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [img, setImg] = useState({
@@ -17,29 +17,39 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
   const chat = model.startChat({
     history: [
-      data?.history.map(({ role, parts }) => ({
-        role,
-        parts: [{ text: parts[0].text }],
-      })),
+      {
+        role: "user",
+        parts: [{ text: "Hello" }],
+      },
+      {
+        role: "model",
+        parts: [{ text: "Great to meet you. What would you like to know?" }],
+      },
     ],
-    generationConfig: {
-      // maxOutputTokens: 100,
-    },
   });
 
+  // Ref for the chat container
   const endRef = useRef(null);
-  const formRef = useRef(null);
+  const fromRef = useRef(null);
 
   useEffect(() => {
-    endRef.current.scrollIntoView({ behavior: "smooth" });
+    // Scroll inside the useEffect
+    if (endRef.current) {
+      endRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+        inline: "nearest",
+      });
+    }
   }, [data, question, answer, img.dbData]);
 
+  ///
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
     mutationFn: () => {
       return fetch(`${import.meta.env.VITE_API_URL}/api/chats/${data._id}`, {
-        method: "PUT",
+        method: "put",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
@@ -55,7 +65,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
       queryClient
         .invalidateQueries({ queryKey: ["chat", data._id] })
         .then(() => {
-          formRef.current.reset();
+          fromRef.current.reset();
           setQuestion("");
           setAnswer("");
           setImg({
@@ -78,32 +88,27 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
       const result = await chat.sendMessageStream(
         Object.entries(img.aiData).length ? [img.aiData, text] : [text]
       );
-      let accumulatedText = "";
+
+      let acculatedText = "";
       for await (const chunk of result.stream) {
         const chunkText = chunk.text();
-        console.log(chunkText);
-        accumulatedText += chunkText;
-        setAnswer(accumulatedText);
-      }
 
+        acculatedText += chunkText;
+        setAnswer(acculatedText); // Update answer as chunks arrive
+      }
       mutation.mutate();
-    } catch (err) {
-      console.log(err);
+    } catch (error) {
+      console.log(error);
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     const text = e.target.text.value;
     if (!text) return;
-
     add(text, false);
   };
-
-  // IN PRODUCTION WE DON'T NEED IT
   const hasRun = useRef(false);
-
   useEffect(() => {
     if (!hasRun.current) {
       if (data?.history?.length === 1) {
